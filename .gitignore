@@ -1,2 +1,4 @@
 venv
 .env
+GOOGLE_API.json
+__pycache__

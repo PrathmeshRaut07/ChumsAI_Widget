@@ -1,1 +1,8 @@
 google-genai==1.2.0
+python-dotenv==1.0.1
+google-cloud-speech==2.31.0
+google-cloud-texttospeech==2.25.0
+numpy==2.2.3
+fastapi==0.115.8
+uvicorn==0.34.0
+python-multipart==0.0.20
