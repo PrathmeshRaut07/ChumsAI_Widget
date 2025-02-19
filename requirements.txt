@@ -7,3 +7,4 @@ fastapi==0.115.8
 uvicorn==0.34.0
 python-multipart==0.0.20
 google-generativeai==0.8.4
+fastapi-cors==0.0.6
