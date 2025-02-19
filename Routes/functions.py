@@ -108,53 +108,9 @@ async def process_audio(audio_file: UploadFile = File(...)):
     
         bg_tasks = BackgroundTasks()
         bg_tasks.add_task(os.unlink, temp_path)
-        headers = {
-            'X-Text-Response': text_response,  # Add text response in header
-            'Content-Disposition': 'attachment; filename=response.wav'
-        }
-        
-        return FileResponse(
-            path=temp_path,
-            media_type='audio/wav',
-            filename='response.wav',
-            background=bg_tasks,
-            headers=headers
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/audio")
-async def process_audio(audio_file: UploadFile = File(...)):
-    """
-    Process audio input and return audio response as a WAV file
-    """
-    try:
-        if not audio_file.filename.endswith('.wav'):
-            raise HTTPException(status_code=400, detail="Only WAV files are supported")
-
-        audio_data = await audio_file.read()
-        
-        try:
-            with wave.open(tempfile.SpooledTemporaryFile(), 'wb') as wav_check:
-                wav_check.setnchannels(1)
-                wav_check.setsampwidth(2)
-                wav_check.setframerate(TARGET_SAMPLE_RATE)
-                wav_check.writeframes(audio_data)
-        except:
-
-            audio_data = convert_wav_sample_rate(audio_data)
-        
-        audio_response,text_response = response_to_audio(audio_data)
-        if audio_response is None:
-            raise HTTPException(status_code=500, detail="Failed to generate audio response")
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_file:
-            temp_file.write(audio_response)
-            temp_path = temp_file.name
-    
-        bg_tasks = BackgroundTasks()
-        bg_tasks.add_task(os.unlink, temp_path)
+        #encode dtext
         encoded_text = base64.b64encode(text_response.encode('utf-8')).decode('ascii')
+
         headers = {
             'X-Text-Response': encoded_text,  
             'Content-Disposition': 'attachment; filename=response.wav'
