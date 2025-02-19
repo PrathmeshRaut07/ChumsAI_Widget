@@ -44,6 +44,7 @@ def response_to_audio(audio_data):
                     "data": audio_data
                 }
             ])
+    text_response=response.text
     
 
     tts_client = texttospeech.TextToSpeechClient()
@@ -70,4 +71,4 @@ def response_to_audio(audio_data):
         audio_config=audio_config
     )
     
-    return response.audio_content
+    return response.audio_content,text_response

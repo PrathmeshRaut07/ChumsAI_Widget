@@ -97,7 +97,7 @@ async def process_audio(audio_file: UploadFile = File(...)):
 
             audio_data = convert_wav_sample_rate(audio_data)
         
-        audio_response = response_to_audio(audio_data)
+        audio_response,text_response = response_to_audio(audio_data)
         if audio_response is None:
             raise HTTPException(status_code=500, detail="Failed to generate audio response")
         
@@ -107,12 +107,17 @@ async def process_audio(audio_file: UploadFile = File(...)):
     
         bg_tasks = BackgroundTasks()
         bg_tasks.add_task(os.unlink, temp_path)
+        headers = {
+            'X-Text-Response': text_response,  # Add text response in header
+            'Content-Disposition': 'attachment; filename=response.wav'
+        }
         
         return FileResponse(
             path=temp_path,
             media_type='audio/wav',
             filename='response.wav',
-            background=bg_tasks
+            background=bg_tasks,
+            headers=headers
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
