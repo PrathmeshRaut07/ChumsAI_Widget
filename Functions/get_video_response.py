@@ -3,7 +3,7 @@ import requests
 import os
 from dotenv import load_dotenv
 import speech_recognition as sr
-
+from Functions.get_text_response import response_to_text
 # Load environment variables (e.g., DID_API_KEY)
 load_dotenv()
 api_key = os.getenv("DID_API_KEY")
@@ -95,22 +95,24 @@ def generate_video(text, voice_id="Sara"):
     print("Video Ready:", video_url)
     return video_url
 
-def main():
-    # Path to your audio file (WAV format)
-    audio_file = "path/to/your/audio.wav"
+# def main():
+#     # Path to your audio file (WAV format)
+#     audio_file = "path/to/your/audio.wav"
     
-    print("Transcribing audio...")
-    transcription = transcribe_audio(audio_file)
+#     print("Transcribing audio...")
+#     transcription = transcribe_audio(audio_file)
     
-    if transcription:
-        print("Transcription:", transcription)
-        video_url = generate_video(transcription)
-        if video_url:
-            print("Generated Video URL:", video_url)
-        else:
-            print("Video generation failed.")
-    else:
-        print("Failed to transcribe audio.")
+    
+#     if transcription:
+#         print("Transcription:", transcription)
+#         transcription=response_to_text(transcription + "response in maximum 20 words")
+#         video_url = generate_video(transcription)
+#         if video_url:
+#             print("Generated Video URL:", video_url)
+#         else:
+#             print("Video generation failed.")
+#     else:
+#         print("Failed to transcribe audio.")
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

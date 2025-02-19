@@ -138,6 +138,7 @@ async def process_audio(audio_file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail="Audio transcription failed.")
 
     # Generate the video using the transcribed text
+    transcription=response_to_text(transcription+"respond max to max in words not more than that")
     video_url = generate_video(transcription)
     os.remove(temp_file_path)  
 
