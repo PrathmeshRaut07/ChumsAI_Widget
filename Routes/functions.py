@@ -154,8 +154,9 @@ async def process_audio(audio_file: UploadFile = File(...)):
     
         bg_tasks = BackgroundTasks()
         bg_tasks.add_task(os.unlink, temp_path)
+        encoded_text = base64.b64encode(text_response.encode('utf-8')).decode('ascii')
         headers = {
-            'X-Text-Response': text_response,  # Add text response in header
+            'X-Text-Response': encoded_text,  
             'Content-Disposition': 'attachment; filename=response.wav'
         }
         
@@ -178,7 +179,6 @@ async def process_audio(audio_file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Only WAV files are supported")
 
         audio_data = await audio_file.read()
-        
         try:
             with wave.open(tempfile.SpooledTemporaryFile(), 'wb') as wav_check:
                 wav_check.setnchannels(1)
