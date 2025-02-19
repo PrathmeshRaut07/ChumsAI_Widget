@@ -95,24 +95,3 @@ def generate_video(text, voice_id="Sara"):
     print("Video Ready:", video_url)
     return video_url
 
-# def main():
-#     # Path to your audio file (WAV format)
-#     audio_file = "path/to/your/audio.wav"
-    
-#     print("Transcribing audio...")
-#     transcription = transcribe_audio(audio_file)
-    
-    
-#     if transcription:
-#         print("Transcription:", transcription)
-#         transcription=response_to_text(transcription + "response in maximum 20 words")
-#         video_url = generate_video(transcription)
-#         if video_url:
-#             print("Generated Video URL:", video_url)
-#         else:
-#             print("Video generation failed.")
-#     else:
-#         print("Failed to transcribe audio.")
-
-# if __name__ == "__main__":
-#     main()

@@ -7,6 +7,7 @@ from Functions.get_audio_response import response_to_audio
 from Functions.get_text_response import response_to_text
 from Functions.get_video_response import generate_video,transcribe_audio
 from Functions.try_it_on import apply_cloth_on_person
+from Functions.get_response_to_audio_as_text import response_to_audio_as_text
 import tempfile
 import os
 import wave
@@ -122,35 +123,109 @@ async def process_audio(audio_file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/audio")
+async def process_audio(audio_file: UploadFile = File(...)):
+    """
+    Process audio input and return audio response as a WAV file
+    """
+    try:
+        if not audio_file.filename.endswith('.wav'):
+            raise HTTPException(status_code=400, detail="Only WAV files are supported")
+
+        audio_data = await audio_file.read()
+        
+        try:
+            with wave.open(tempfile.SpooledTemporaryFile(), 'wb') as wav_check:
+                wav_check.setnchannels(1)
+                wav_check.setsampwidth(2)
+                wav_check.setframerate(TARGET_SAMPLE_RATE)
+                wav_check.writeframes(audio_data)
+        except:
+
+            audio_data = convert_wav_sample_rate(audio_data)
+        
+        audio_response,text_response = response_to_audio(audio_data)
+        if audio_response is None:
+            raise HTTPException(status_code=500, detail="Failed to generate audio response")
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_file:
+            temp_file.write(audio_response)
+            temp_path = temp_file.name
+    
+        bg_tasks = BackgroundTasks()
+        bg_tasks.add_task(os.unlink, temp_path)
+        headers = {
+            'X-Text-Response': text_response,  # Add text response in header
+            'Content-Disposition': 'attachment; filename=response.wav'
+        }
+        
+        return FileResponse(
+            path=temp_path,
+            media_type='audio/wav',
+            filename='response.wav',
+            background=bg_tasks,
+            headers=headers
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 @router.post("/video")
 async def process_audio(audio_file: UploadFile = File(...)):
     """
-    FastAPI route that accepts a WAV file, transcribes the audio, and generates a video.
+    Process audio input and return audio response as a WAV file
     """
-    # Check that the file is a WAV file
-    if not audio_file.filename.endswith(".wav"):
-        raise HTTPException(status_code=400, detail="Only WAV files are supported.")
+    try:
+        if not audio_file.filename.endswith('.wav'):
+            raise HTTPException(status_code=400, detail="Only WAV files are supported")
 
-    # Save the uploaded file to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-        tmp.write(await audio_file.read())
-        temp_file_path = tmp.name
+        audio_data = await audio_file.read()
+        
+        try:
+            with wave.open(tempfile.SpooledTemporaryFile(), 'wb') as wav_check:
+                wav_check.setnchannels(1)
+                wav_check.setsampwidth(2)
+                wav_check.setframerate(TARGET_SAMPLE_RATE)
+                wav_check.writeframes(audio_data)
+        except:
 
-    # Transcribe the audio
-    transcription = transcribe_audio(temp_file_path)
-    if transcription is None:
-        os.remove(temp_file_path)
-        raise HTTPException(status_code=500, detail="Audio transcription failed.")
+            audio_data = convert_wav_sample_rate(audio_data)
+        
+        text_response =response_to_audio_as_text(audio_data)
+    
+        video_url=generate_video(text_response)
+        
+        return  {"video_url":video_url,"text_response":text_response}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-    # Generate the video using the transcribed text
-    transcription=response_to_text(transcription+"respond max to max in words not more than that")
-    video_url = generate_video(transcription)
-    os.remove(temp_file_path)  
+# @router.post("/video")
+# async def process_audio(audio_file: UploadFile = File(...)):
+#     """
+#     FastAPI route that accepts a WAV file, transcribes the audio, and generates a video.
+#     """
+#     # Check that the file is a WAV file
+#     if not audio_file.filename.endswith(".wav"):
+#         raise HTTPException(status_code=400, detail="Only WAV files are supported.")
 
-    if video_url is None:
-        raise HTTPException(status_code=500, detail="Video generation failed.")
+#     # Save the uploaded file to a temporary file
+#     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+#         tmp.write(await audio_file.read())
+#         temp_file_path = tmp.name
 
-    return {"video_url": video_url,"text":transcription}
+#     # Transcribe the audio
+#     transcription = transcribe_audio(temp_file_path)
+#     if transcription is None:
+#         os.remove(temp_file_path)
+#         raise HTTPException(status_code=500, detail="Audio transcription failed.")
+
+#     # Generate the video using the transcribed text
+#     transcription=response_to_text(transcription+"respond max to max in words not more than that")
+#     video_url = generate_video(transcription)
+#     os.remove(temp_file_path)  
+
+#     if video_url is None:
+#         raise HTTPException(status_code=500, detail="Video generation failed.")
+
+#     return {"video_url": video_url,"text":transcription}
 
 @router.post("/image_generate", response_model=dict)
 async def generate_image(
