@@ -150,7 +150,7 @@ async def process_audio(audio_file: UploadFile = File(...)):
     if video_url is None:
         raise HTTPException(status_code=500, detail="Video generation failed.")
 
-    return {"video_url": video_url}
+    return {"video_url": video_url,"text":transcription}
 
 @router.post("/image_generate", response_model=dict)
 async def generate_image(
