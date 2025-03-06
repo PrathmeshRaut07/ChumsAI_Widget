@@ -1,74 +1,118 @@
-from google.cloud import speech_v1
-from google.cloud import texttospeech
 import os
+import io
 import wave
-from Functions.get_text_response import response_to_text
-import numpy as np
+import tempfile
+import traceback
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import uvicorn
+
 import google.generativeai as genai
+from google.cloud import texttospeech
 from dotenv import load_dotenv
+
+# For WebM -> WAV conversion:
+# pip install pydub
+# Also ensure you have ffmpeg installed and on your PATH
+from pydub import AudioSegment
+
 load_dotenv()
+
+# Configure Google Generative AI
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "GOOGLE_API.json"
-model = genai.GenerativeModel('models/gemini-2.0-flash')
-def response_to_audio(audio_data):
-    """
-    Process audio data through speech-to-text, get a response, and convert back to audio
-    
-    Parameters:
-    audio_data (bytes): Raw audio data in WAV format
-    
-    Returns:
-    bytes: Generated audio response in WAV format
-    """
-    # speech_client = speech_v1.SpeechClient()
-    
-    # config = speech_v1.RecognitionConfig(
-    #     encoding=speech_v1.RecognitionConfig.AudioEncoding.LINEAR16,
-    #     sample_rate_hertz=44100,
-    #     language_code="en-US",
-    # )
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "Google_API.json"
 
-    # audio = speech_v1.RecognitionAudio(content=audio_data)
+model = genai.GenerativeModel('gemini-2.0-flash')
 
-    # response = speech_client.recognize(config=config, audio=audio)
-    
-    # if not response.results:
-    #     return None
-    
-    # transcribed_text = response.results[0].alternatives[0].transcript
-    prompt="you are a helful assitant"
-    response = model.generate_content([
-                prompt,
+TARGET_SAMPLE_RATE = 16000
+
+
+def webm_to_wav_bytes(webm_data: bytes, target_sample_rate: int = 16000) -> bytes:
+    """
+    Convert a WebM (Opus) chunk to WAV (PCM) at the specified sample rate.
+    Returns the WAV data as bytes.
+    """
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as temp_in:
+            temp_in.write(webm_data)
+            temp_in.flush()
+            in_path = temp_in.name
+
+        out_path = in_path + ".wav"
+
+        # Use pydub to read the input (webm) and export to WAV
+        audio = AudioSegment.from_file(in_path, format="webm")
+        audio = audio.set_frame_rate(target_sample_rate).set_channels(1).set_sample_width(2)
+        audio.export(out_path, format="wav")
+
+        with open(out_path, "rb") as f_out:
+            wav_bytes = f_out.read()
+        
+        # Clean up
+        try:
+            os.remove(in_path)
+            os.remove(out_path)
+        except:
+            pass
+
+        return wav_bytes
+
+    except Exception as e:
+        print("Error converting WebM to WAV:", e)
+        # Return empty or pass through the original
+        return b""
+
+
+def response_to_audio(audio_data: bytes):
+    """
+    - Use Google's Generative AI to interpret audio (the new speech input interface).
+    - If that fails, fall back to a default response.
+    - Convert the text response to TTS (LINEAR16, 16kHz).
+    """
+    try:
+        if not audio_data:
+            raise ValueError("No audio data provided.")
+
+        default_prompt = "You are a helpful AI assistant. Respond concisely."
+
+        try:
+            # Attempt to generate content from audio
+            response = model.generate_content([
+                default_prompt,
                 {
-                    "mime_type": "audio/mp3",
+                    "mime_type": "audio/webm",   # We label it as webm for the model
                     "data": audio_data
                 }
             ])
-    text_response=response.text
-    
+            text_response = response.text
+            print("AI recognized text:", text_response)
+        except Exception as audio_process_error:
+            print(f"Audio processing error: {audio_process_error}")
+            text_response = "I'm sorry, I couldn't understand the audio. Please try again."
 
-    tts_client = texttospeech.TextToSpeechClient()
-    
-    print(response.text)
-    synthesis_input = texttospeech.SynthesisInput(text=response.text)
-    
- 
-    voice = texttospeech.VoiceSelectionParams(
-        language_code="en-US",
-        ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
-    )
-    
+        # Text-to-speech conversion
+        tts_client = texttospeech.TextToSpeechClient()
+        synthesis_input = texttospeech.SynthesisInput(text=text_response)
 
-    audio_config = texttospeech.AudioConfig(
-        audio_encoding=texttospeech.AudioEncoding.LINEAR16,
-        sample_rate_hertz=16000,
-    )
-    
+        voice = texttospeech.VoiceSelectionParams(
+            language_code="en-US",
+            ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
+        )
 
-    response = tts_client.synthesize_speech(
-        input=synthesis_input,
-        voice=voice,
-        audio_config=audio_config
-    )
-    
-    return response.audio_content,text_response
+        audio_config = texttospeech.AudioConfig(
+            audio_encoding=texttospeech.AudioEncoding.LINEAR16,
+            sample_rate_hertz=TARGET_SAMPLE_RATE,
+        )
+
+        tts_response = tts_client.synthesize_speech(
+            input=synthesis_input,
+            voice=voice,
+            audio_config=audio_config
+        )
+
+        return tts_response.audio_content, text_response
+
+    except Exception as e:
+        print("Critical error in response_to_audio:", traceback.format_exc())
+        return None, f"An error occurred: {str(e)}"
+

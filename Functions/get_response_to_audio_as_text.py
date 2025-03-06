@@ -8,7 +8,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "GOOGLE_API.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "Google_API.json"
 model = genai.GenerativeModel('models/gemini-2.0-flash')
 def response_to_audio_as_text(audio_data):
     """
@@ -20,7 +20,9 @@ def response_to_audio_as_text(audio_data):
     Returns:
     bytes: Generated audio response in WAV format
     """
-    
+    #print(audio_data)
+    if not audio_data:
+         raise ValueError("No audio data provided.")
     prompt="you are helpful assistant and reply in maximum 20 words not more that"
     response = model.generate_content([
                 prompt,

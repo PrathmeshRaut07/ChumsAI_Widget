@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio Chat</title>
+</head>
+<body>
+    <button id="startRecording">Start Recording</button>
+    <button id="stopRecording" disabled>Stop Recording</button>
+    <div id="response"></div>
+    <audio id="audioPlayer" controls></audio>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        const ws = new WebSocket('http://localhost:8000/Response/ws/audio');
+
+        ws.onopen = () => {
+            console.log('Connected to WebSocket');
+        };
+
+        ws.onmessage = async (event) => {
+            if (event.data instanceof Blob) {
+                // Handle audio response
+                const audioBlob = new Blob([event.data], { type: 'audio/wav' });
+                const audioUrl = URL.createObjectURL(audioBlob);
+                const audioPlayer = document.getElementById('audioPlayer');
+                audioPlayer.src = audioUrl;
+                audioPlayer.play();
+            } else {
+                // Handle text response
+                try {
+                    const response = JSON.parse(event.data);
+                    if (response.error) {
+                        console.error('Error:', response.error);
+                        document.getElementById('response').textContent = `Error: ${response.error}`;
+                    } else if (response.text) {
+                        const decodedText = atob(response.text);
+                        document.getElementById('response').textContent = decodedText;
+                    }
+                } catch (e) {
+                    console.error('Error parsing response:', e);
+                }
+            }
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket Error:', error);
+        };
+
+        ws.onclose = () => {
+            console.log('Disconnected from WebSocket');
+        };
+
+        document.getElementById('startRecording').onclick = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    ws.send(await audioBlob.arrayBuffer());
+                };
+
+                mediaRecorder.start();
+                document.getElementById('startRecording').disabled = true;
+                document.getElementById('stopRecording').disabled = false;
+            } catch (err) {
+                console.error('Error accessing microphone:', err);
+            }
+        };
+
+        document.getElementById('stopRecording').onclick = () => {
+            mediaRecorder.stop();
+            document.getElementById('startRecording').disabled = false;
+            document.getElementById('stopRecording').disabled = true;
+        };
+    </script>
+</body>
+</html>

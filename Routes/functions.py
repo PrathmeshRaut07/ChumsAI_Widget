@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 from fastapi.background import BackgroundTasks
 from pydantic import BaseModel
 from typing import Any
-from Functions.get_audio_response import response_to_audio
+from Functions.get_audio_response import response_to_audio,webm_to_wav_bytes
 from Functions.get_text_response import response_to_text
 from Functions.get_video_response import generate_video,transcribe_audio
 from Functions.try_it_on import apply_cloth_on_person
@@ -13,9 +13,24 @@ import os
 import wave
 import audioop
 import base64
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from typing import List
 from io import BytesIO
 
 router = APIRouter()
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+manager = ConnectionManager()
+
 
 
 TARGET_SAMPLE_RATE = 16000
@@ -77,6 +92,7 @@ async def process_text(request: TextRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
 @router.post("/audio")
 async def process_audio(audio_file: UploadFile = File(...)):
     """
@@ -125,6 +141,121 @@ async def process_audio(audio_file: UploadFile = File(...)):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+# @router.websocket("/ws/audio")
+# async def audio_ws_endpoint(websocket: WebSocket):
+#     await websocket.accept()
+#     print("WebSocket connection established")
+
+#     try:
+#         while True:
+#             try:
+#                 # Receive the binary audio data
+#                 audio_chunk = await websocket.receive_bytes()
+#                 print(f"Received audio chunk of size: {len(audio_chunk)} bytes")
+
+#                 if not audio_chunk:
+#                     print("Empty chunk received, continuing...")
+#                     continue
+
+#                 # Convert WebM to WAV
+#                 try:
+#                     wav_bytes = webm_to_wav_bytes(audio_chunk)
+#                     print(f"Converted to WAV, size: {len(wav_bytes)} bytes")
+#                 except Exception as e:
+#                     print(f"Error converting audio: {e}")
+#                     continue
+
+#                 if not wav_bytes:
+#                     print("No WAV data after conversion")
+#                     continue
+
+#                 # Process audio and get response
+#                 try:
+#                     audio_response, text_response = response_to_audio(wav_bytes)
+#                     print(f"Generated response: {text_response}")
+                    
+#                     if audio_response:
+#                         await websocket.send_bytes(audio_response)
+#                         print(f"Sent response audio of size: {len(audio_response)} bytes")
+#                     else:
+#                         print("No audio response generated")
+#                 except Exception as e:
+#                     print(f"Error processing audio: {e}")
+#                     continue
+
+#             except Exception as e:
+#                 print(f"Error in websocket loop: {e}")
+#                 continue
+
+#     except WebSocketDisconnect:
+#         print("Client disconnected")
+#     except Exception as e:
+#         print(f"Unhandled WebSocket error: {e}")
+#     finally:
+#         print("WebSocket connection closed")
+
+
+@router.websocket("/ws/audio")
+async def audio_ws_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    print("WebSocket connection established")
+
+    try:
+        while True:
+            try:
+                # Receive the binary audio data
+                audio_chunk = await websocket.receive_bytes()
+                print(f"Received audio chunk of size: {len(audio_chunk)} bytes")
+            except WebSocketDisconnect:
+                print("Client disconnected during receive")
+                break  # Break out of the loop on disconnect
+            except Exception as e:
+                print(f"Error receiving audio chunk: {e}")
+                continue
+
+            if not audio_chunk:
+                print("Empty chunk received, continuing...")
+                continue
+
+            # Convert WebM to WAV
+            try:
+                wav_bytes = webm_to_wav_bytes(audio_chunk)
+                print(f"Converted to WAV, size: {len(wav_bytes)} bytes")
+            except Exception as e:
+                print(f"Error converting audio: {e}")
+                continue
+
+            if not wav_bytes:
+                print("No WAV data after conversion")
+                continue
+
+            # Process audio and get response
+            try:
+                audio_response, text_response = response_to_audio(wav_bytes)
+                print(f"Generated response: {text_response}")
+
+                if audio_response:
+                    await websocket.send_bytes(audio_response)
+                    print(f"Sent response audio of size: {len(audio_response)} bytes")
+                else:
+                    print("No audio response generated")
+            except Exception as e:
+                print(f"Error processing audio: {e}")
+                continue
+
+    except WebSocketDisconnect:
+        print("Client disconnected")
+    except Exception as e:
+        print(f"Unhandled WebSocket error: {e}")
+    finally:
+        print("WebSocket connection closed")
+
+
+
+
 @router.post("/video")
 async def process_audio(audio_file: UploadFile = File(...)):
     """

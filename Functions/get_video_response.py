@@ -58,12 +58,13 @@ def generate_video(text, voice_id="Sara"):
             "pad_audio": "0.0"
         }
     }
+    api_key="bm9wczU4Mjc5QGdtYWlsLmNvbQ:yQzP2o-5aQpozaJBjf9Ix"
     headers = {
         "accept": "application/json",
         "content-type": "application/json",
         "authorization": "Basic " + api_key
     }
-    
+    print(text)
     response = requests.post(url, json=payload, headers=headers)
     data = response.json()
 
